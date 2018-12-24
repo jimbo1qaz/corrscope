@@ -5,6 +5,8 @@ description = ""
 authors = ["jimbo1qaz <jimbo1qaz@gmail.com>"]
 license = "BSD-2-Clause"
 
+build = "build.py"
+
 [tool.poetry.dependencies]
 python = "^3.6"
 "ruamel.yaml" = "^0.15.70"

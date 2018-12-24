@@ -1,3 +1,4 @@
+# cython: language_level=3
 from typing import Optional, Union
 
 import numpy as np
