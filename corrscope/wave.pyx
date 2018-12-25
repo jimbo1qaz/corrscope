@@ -19,7 +19,7 @@ FLOAT = np.single
 cdef class Wave:
     cdef _WaveConfig cfg
     cdef public int smp_s
-    cdef object data
+    cdef int[:] data
     cdef int nsamp
     cdef int center, max_val
 
@@ -28,16 +28,17 @@ cdef class Wave:
             cfg = _WaveConfig()
         self.cfg = cfg
 
-        self.smp_s, self.data = wavfile.read(wave_path, mmap=True)
-        dtype = self.data.dtype
+        self.smp_s, data = wavfile.read(wave_path, mmap=True)
+        dtype = data.dtype
 
         # Flatten stereo to mono
-        assert self.data.ndim in [1, 2]
-        if self.data.ndim == 2:
+        assert data.ndim in [1, 2]
+        if data.ndim == 2:
             # np.mean() defaults to dtype=float64,
             # which prevents overflow if dtype is an integer.
-            self.data = np.mean(self.data, axis=1).astype(dtype)
+            data = np.mean(data, axis=1).astype(dtype)
 
+        self.data = data
         self.nsamp = len(self.data)
 
         # Calculate scaling factor.
