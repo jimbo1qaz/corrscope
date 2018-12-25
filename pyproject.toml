@@ -18,6 +18,7 @@ attrs = "^18.2.0"
 PyQt5 = "^5.11"
 PyQt5-sip = "^4.19"
 cython = "^0.29.2"
+pytest-cython = "^0.1.0"
 
 [tool.poetry.dev-dependencies]
 pytest = "^4.0"
