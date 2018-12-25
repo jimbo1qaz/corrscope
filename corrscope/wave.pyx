@@ -2,7 +2,6 @@
 from typing import Optional, Union
 
 import numpy as np
-import attr
 import corrscope.utils.scipy_wavfile as wavfile
 
 
@@ -10,17 +9,22 @@ import corrscope.utils.scipy_wavfile as wavfile
 from corrscope.config import CorrError
 
 
-@attr.dataclass
-class _WaveConfig:
-    amplification: float = 1
+cdef class _WaveConfig:
+    cdef public float amplification
 
 
 FLOAT = np.single
 
 
-class Wave:
-    def __init__(self, cfg: Optional[_WaveConfig], wave_path: str):
-        self.cfg = cfg or _WaveConfig()
+cdef class Wave:
+    cdef _WaveConfig cfg
+    cdef int smp_s
+
+    def __init__(self, _WaveConfig cfg, wave_path: str):
+        if cfg is None:
+            cfg = _WaveConfig()
+        self.cfg = cfg
+
         self.smp_s, self.data = wavfile.read(wave_path, mmap=True)  # type: int, np.ndarray
         dtype = self.data.dtype
 

@@ -46,7 +46,8 @@ class Channel:
         self.cfg = cfg
 
         # Create a Wave object.
-        wcfg = _WaveConfig(amplification=corr_cfg.amplification * cfg.ampl_ratio)
+        wcfg = _WaveConfig()
+        wcfg.amplification = corr_cfg.amplification * cfg.ampl_ratio
         self.wave = Wave(wcfg, abspath(cfg.wav_path))
 
         # `subsampling` increases `stride` and decreases `nsamp`.
