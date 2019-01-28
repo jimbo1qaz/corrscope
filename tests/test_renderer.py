@@ -74,7 +74,7 @@ def verify(r: MatplotlibRenderer, bg_str, fg_str, grid_str: Optional[str]):
     all_colors = [bg_u8, fg_u8]
 
     if grid_str:
-        grid_u8 = [round(c * 255) for c in to_rgb(grid_str)]
+        grid_u8 = to_bgra(grid_str)
         all_colors.append(grid_u8)
 
     # Ensure background is correct
