@@ -34,6 +34,7 @@ if mpl_config_dir in os.environ:
 matplotlib.use("module://mplcairo.base")
 matplotlib.rcParams["agg.path.chunksize"] = 1000
 from mplcairo.base import FigureCanvasCairo
+from mplcairo._mplcairo import antialias_t
 from matplotlib.figure import Figure
 
 if TYPE_CHECKING:
@@ -60,6 +61,7 @@ class RendererConfig(DumpableAttrs, always_dump="*"):
     bg_color: str = "#000000"
     init_line_color: str = default_color()
     grid_color: Optional[str] = None
+    antialiasing: bool = True
 
     # Performance (skipped when recording to video)
     res_divisor: float = 1.0
@@ -147,6 +149,12 @@ class MatplotlibRenderer(Renderer):
 
     def __init__(self, *args, **kwargs):
         Renderer.__init__(self, *args, **kwargs)
+
+        if self.cfg.antialiasing:
+            aa_mode = antialias_t.DEFAULT
+        else:
+            aa_mode = False
+        dict.__setitem__(matplotlib.rcParams, "lines.antialiased", aa_mode)
 
         # Flat array of nrows*ncols elements, ordered by cfg.rows_first.
         self._fig: "Figure"
