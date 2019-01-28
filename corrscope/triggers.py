@@ -243,7 +243,7 @@ class CorrelationTrigger(Trigger):
         # Get data
         stride = self._stride
         data = self._wave.get_around(index, N, stride)
-        cache.mean = np.mean(data)
+        cache.mean = 0  # np.mean(data)
         data -= cache.mean
 
         # Window data
