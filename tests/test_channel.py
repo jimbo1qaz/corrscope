@@ -8,8 +8,15 @@ from pytest_mock import MockFixture
 
 import corrscope.channel
 import corrscope.corrscope
+from corrscope import parallelism
 from corrscope.channel import ChannelConfig, Channel
-from corrscope.corrscope import default_config, CorrScope, BenchmarkMode, Arguments
+from corrscope.corrscope import (
+    default_config,
+    CorrScope,
+    BenchmarkMode,
+    Arguments,
+    RenderJob,
+)
 from corrscope.triggers import NullTriggerConfig
 from corrscope.util import coalesce
 from corrscope.wave import Flatten
@@ -118,8 +125,10 @@ def test_config_channel_width_stride(
     assert trigger._stride == channel._trigger_stride
 
     ## Ensure corrscope calls render using channel._render_samp and _render_stride.
-    corr = CorrScope(cfg, Arguments(cfg_dir=".", outputs=[]))
-    renderer = mocker.patch.object(CorrScope, "_load_renderer").return_value
+    corr = CorrScope(
+        cfg, Arguments(cfg_dir=".", outputs=[], worker=parallelism.SerialWorker)
+    )
+    renderer = mocker.patch.object(RenderJob, "_load_renderer").return_value
     corr.play()
 
     # Only Channel.get_render_around() (not NullTrigger) calls wave.get_around().

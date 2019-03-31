@@ -8,12 +8,13 @@ import shutil
 import subprocess
 from fractions import Fraction
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 import pytest
 
+from corrscope import parallelism
 from corrscope.channel import ChannelConfig
-from corrscope.corrscope import default_config, Config, CorrScope, Arguments
+from corrscope.corrscope import default_config, Config, CorrScope, Arguments, RenderJob
 from corrscope.outputs import (
     RGB_DEPTH,
     FFmpegOutput,
@@ -23,21 +24,26 @@ from corrscope.outputs import (
     Stop,
 )
 from corrscope.renderer import RendererConfig, MatplotlibRenderer
+from corrscope.util import pushd
 from tests.test_renderer import RENDER_Y_ZEROS, WIDTH, HEIGHT
 
 
 if TYPE_CHECKING:
     import pytest_mock
     from unittest.mock import MagicMock
+    import py
 
 
 # Global setup
 if not shutil.which("ffmpeg"):
+    missing_ffmpeg = True
     pytestmark = pytest.mark.xfail(
         reason="Missing ffmpeg, ignoring failed output tests",
         raises=FileNotFoundError,  # includes MissingFFmpegError
         strict=False,
     )
+else:
+    missing_ffmpeg = False
 
 
 def exception_Popen(mocker: "pytest_mock.MockFixture", exc: Exception) -> "MagicMock":
@@ -70,10 +76,13 @@ render_cfg = RendererConfig(WIDTH, HEIGHT)
 CFG = default_config(render=render_cfg)
 
 
+sine440_wav = os.path.abspath("tests/sine440.wav")
+
+
 def sine440_config():
     cfg = default_config(
-        channels=[ChannelConfig("tests/sine440.wav")],
-        master_audio="tests/sine440.wav",
+        channels=[ChannelConfig(sine440_wav)],
+        master_audio=sine440_wav,
         end_time=0.5,  # Reduce test duration
         render=render_cfg,
     )
@@ -131,7 +140,9 @@ def test_corrscope_main_uses_contextmanager(mocker: "pytest_mock.MockFixture"):
 
     cfg = sine440_config()
     cfg.master_audio = None
-    corr = CorrScope(cfg, Arguments(".", [NULL_FFMPEG_OUTPUT]))
+    corr = CorrScope(
+        cfg, Arguments(".", [NULL_FFMPEG_OUTPUT], worker=parallelism.SerialWorker)
+    )
     corr.play()
 
     FFmpegOutput.assert_called()
@@ -164,15 +175,24 @@ def test_corr_terminate_ffplay(Popen, mocker: "pytest_mock.MockFixture"):
     Python exceptions occur. """
 
     cfg = sine440_config()
-    corr = CorrScope(cfg, Arguments(".", [FFplayOutputConfig()]))
+    corr = CorrScope(
+        cfg, Arguments(".", [FFplayOutputConfig()], worker=parallelism.SerialWorker)
+    )
 
     render_frame = mocker.patch.object(MatplotlibRenderer, "render_frame")
     render_frame.side_effect = DummyException()
     with pytest.raises(DummyException):
         corr.play()
 
-    assert len(corr.outputs) == 1
-    output: FFplayOutput = corr.outputs[0]
+    # Ensure outputs are terminated.
+    render_worker = corr.render_worker
+    assert isinstance(render_worker, parallelism.SerialWorker)
+
+    child_job = render_worker.child_job
+    assert isinstance(child_job, RenderJob)
+
+    assert len(child_job.outputs) == 1
+    output: FFplayOutput = child_job.outputs[0]
 
     for popen in output._pipeline:
         popen.terminate.assert_called()
@@ -185,7 +205,9 @@ def test_corr_terminate_works():
     `popen.terminate()` is called. """
 
     cfg = sine440_config()
-    corr = CorrScope(cfg, Arguments(".", [FFplayOutputConfig()]))
+    corr = CorrScope(
+        cfg, Arguments(".", [FFplayOutputConfig()], worker=parallelism.SerialWorker)
+    )
     corr.raise_on_teardown = DummyException
 
     with pytest.raises(DummyException):
@@ -230,7 +252,9 @@ def test_corr_output_without_audio():
     cfg = sine440_config()
     cfg.master_audio = None
 
-    corr = CorrScope(cfg, Arguments(".", [NULL_FFMPEG_OUTPUT]))
+    corr = CorrScope(
+        cfg, Arguments(".", [NULL_FFMPEG_OUTPUT], worker=parallelism.SerialWorker)
+    )
     # Should not raise exception.
     corr.play()
 
@@ -261,7 +285,9 @@ def test_render_subfps_one():
     cfg = sine440_config()
     cfg.render_subfps = 1
 
-    corr = CorrScope(cfg, Arguments(".", [DummyOutputConfig()]))
+    corr = CorrScope(
+        cfg, Arguments(".", [DummyOutputConfig()], worker=parallelism.SerialWorker)
+    )
     corr.play()
     assert DummyOutput.frames_written >= 2
 
@@ -281,7 +307,9 @@ def test_render_subfps_non_integer(mocker: "pytest_mock.MockFixture"):
     assert cfg.render_fps != int(cfg.render_fps)
     assert Fraction(1) == int(1)
 
-    corr = CorrScope(cfg, Arguments(".", [NULL_FFMPEG_OUTPUT]))
+    corr = CorrScope(
+        cfg, Arguments(".", [NULL_FFMPEG_OUTPUT], worker=parallelism.SerialWorker)
+    )
     corr.play()
 
     # But it seems FFmpeg actually allows decimal -framerate (although a bad idea).
@@ -336,7 +364,7 @@ def test_preview_performance(Popen, mocker: "pytest_mock.MockFixture", outputs):
     previews, records = previews_records(mocker)
 
     cfg = cfg_192x108()
-    corr = CorrScope(cfg, Arguments(".", outputs))
+    corr = CorrScope(cfg, Arguments(".", outputs, worker=parallelism.SerialWorker))
     corr.play()
 
     # Check that only before_preview() called.
@@ -345,9 +373,9 @@ def test_preview_performance(Popen, mocker: "pytest_mock.MockFixture", outputs):
     for r in records:
         r.assert_not_called()
 
-    # Check renderer is 128x72
-    assert corr.renderer.cfg.width == 128
-    assert corr.renderer.cfg.height == 72
+    # Check renderer is 128x72. (CorrScope() mutates cfg)
+    assert cfg.render.width == 128
+    assert cfg.render.height == 72
 
     # Ensure subfps is enabled (only odd frames are rendered, 1..29).
     # See CorrScope `should_render` variable.
@@ -368,7 +396,7 @@ def test_record_performance(Popen, mocker: "pytest_mock.MockFixture", outputs):
     previews, records = previews_records(mocker)
 
     cfg = cfg_192x108()
-    corr = CorrScope(cfg, Arguments(".", outputs))
+    corr = CorrScope(cfg, Arguments(".", outputs, worker=parallelism.SerialWorker))
     corr.play()
 
     # Check that only before_record() called.
@@ -377,9 +405,46 @@ def test_record_performance(Popen, mocker: "pytest_mock.MockFixture", outputs):
     for r in records:
         r.assert_called()
 
-    # Check renderer is 192x108
-    assert corr.renderer.cfg.width == 192
-    assert corr.renderer.cfg.height == 108
+    # Check renderer is 192x108. (CorrScope() mutates cfg)
+    assert cfg.render.width == 192
+    assert cfg.render.height == 108
 
     # Ensure subfps is disabled.
     assert get_frame.call_count == round(cfg.end_time * cfg.fps) + 1 == 31
+
+
+# Integration test: Output and ParallelWorker
+@pytest.mark.timeout(3)
+@pytest.mark.xfail(
+    # reason="Missing ffmpeg, parent_send() will receive Error and exit(1)",
+    reason="sorry, ParallelWorker is basically nonfunctional"
+)
+@pytest.mark.parametrize("profile_name", [None, "test_output_parallel--profile"])
+def test_output_parallel(profile_name: Optional[str], tmpdir: "py.path.local"):
+    """ Ensure output doesn't deadlock/etc.
+    Ideally I'd make assertions on the communication protocol,
+    but spying on the Connection call arguments is hard.
+    """
+    with pushd(tmpdir):  # converted to str(tmpdir)
+        cfg = sine440_config()
+        arg = Arguments(
+            ".",
+            [NULL_FFMPEG_OUTPUT],
+            profile_name=profile_name,
+            worker=parallelism.ParallelWorker,
+        )
+        corr = CorrScope(cfg, arg)
+        corr.play()
+
+
+"""
+FIXME add tests... I have no confidence that parallelism works properly:
+
+- If parent raises exception, should send Error to child.
+    - if child gets Error, it should terminate.
+- If child raises exception, should send exc OR traceback to parent.
+    - if parent receives exception/traceback, should raise it (show to cli/gui).
+
+This needs 4 separate unit tests = (2 parent and 2 child) tests.
+- since pytest can't mock objects in the child process.
+"""

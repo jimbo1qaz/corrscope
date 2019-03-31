@@ -21,6 +21,7 @@ if TYPE_CHECKING:
 os.chdir(Path(__file__).parent.parent)
 
 
+# TODO patch outputs.Popen to avoid breaking multiprocessing
 @pytest.fixture
 def Popen(mocker: "pytest_mock.MockFixture"):
     real_Popen = subprocess.Popen

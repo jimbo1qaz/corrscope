@@ -33,6 +33,7 @@ coverage = "^4.5"
 pytest-cov = "^2.6"
 codecov = "^2.0"
 pytest_cases = "^1.2"
+pytest-timeout = "^1.3"
 
 [tool.poetry.scripts]
 corr = 'corrscope.cli:main'
