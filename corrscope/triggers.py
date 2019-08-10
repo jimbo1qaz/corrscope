@@ -135,6 +135,23 @@ class _Trigger(ABC):
             name, self._wave_idx, self._stride, data, offset=offset
         )
 
+    def custom_xy_line(
+        self,
+        name: str,
+        xs: np.ndarray,
+        ys: np.ndarray,
+        offset: bool,
+        invert: bool,
+    ):
+        """See above for `offset` and `invert`."""
+        if self._renderer is None:
+            return
+        if invert:
+            ys *= np.copysign(1, self._wave.amplification)
+        self._renderer.update_custom_xy_line(
+            name, self._wave_idx, self._stride, xs, ys, offset=offset
+        )
+
     def custom_vline(self, name: str, x: int, offset: bool):
         """See above for `offset`."""
         if self._renderer is None:

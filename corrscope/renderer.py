@@ -809,6 +809,31 @@ class RendererFrontend(_RendererBackend, ABC):
 
     _offsetable: DefaultDict[int, MutableSequence[CustomLine]]
 
+    def update_custom_xy_line(
+        self,
+        name: str,
+        wave_idx: int,
+        stride: int,
+        xs: np.ndarray,
+        ys: np.ndarray,
+        *,
+        offset: bool = True,
+    ):
+        xs = xs.copy()
+        ys = ys.copy()
+        key = (name, wave_idx)
+
+        if key not in self._custom_lines:
+            line = self._add_xy_line_mono(wave_idx, stride, xs, ys)
+            self._custom_lines[key] = line
+            if offset:
+                self._offsetable[wave_idx].append(line)
+        else:
+            line = self._custom_lines[key]
+
+        line.set_xdata(xs)
+        line.set_ydata(ys)
+
     def update_custom_line(
         self,
         name: str,
