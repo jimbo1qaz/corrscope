@@ -250,8 +250,8 @@ class CorrScope:
         renderer.add_labels([channel.label for channel in self.channels])
 
         # For debugging only
-        # for trigger in self.triggers:
-        #     trigger.set_renderer(renderer)
+        for trigger in self.triggers:
+            trigger.set_renderer(renderer)
 
         if PRINT_TIMESTAMP:
             begin = time.perf_counter()
