@@ -261,7 +261,7 @@ class _RendererBackend(ABC):
         self,
         cfg: RendererConfig,
         lcfg: "LayoutConfig",
-        dummy_datas: List[np.ndarray],
+        dummy_yss: List[np.ndarray],
         channel_cfgs: Optional[List["ChannelConfig"]],
         channels: List["Channel"],
     ):
@@ -271,12 +271,12 @@ class _RendererBackend(ABC):
         self.w = cfg.divided_width
         self.h = cfg.divided_height
 
-        self.nplots = len(dummy_datas)
+        self.nplots = len(dummy_yss)
 
         if self.nplots > 0:
-            assert len(dummy_datas[0].shape) == 2, dummy_datas[0].shape
-        self.wave_nsamps = [data.shape[0] for data in dummy_datas]
-        self.wave_nchans = [data.shape[1] for data in dummy_datas]
+            assert len(dummy_yss[0].shape) == 2, dummy_yss[0].shape
+        self.wave_nsamps = [channel_ys.shape[0] for channel_ys in dummy_yss]
+        self.wave_nchans = [channel_ys.shape[1] for channel_ys in dummy_yss]
 
         # Load line colors.
         if channel_cfgs is not None:
@@ -307,7 +307,7 @@ class _RendererBackend(ABC):
 
     @abstractmethod
     def add_lines_stereo(
-        self, dummy_datas: List[np.ndarray], strides: List[int]
+        self, dummy_yss: List[np.ndarray], strides: List[int]
     ) -> UpdateLines:
         ...
 
@@ -571,7 +571,7 @@ class AbstractMatplotlibRenderer(_RendererBackend, ABC):
 
     # Public API
     def add_lines_stereo(
-        self, dummy_datas: List[np.ndarray], strides: List[int]
+        self, dummy_yss: List[np.ndarray], strides: List[int]
     ) -> UpdateLines:
         cfg = self.cfg
 
@@ -580,8 +580,8 @@ class AbstractMatplotlibRenderer(_RendererBackend, ABC):
 
         # Foreach wave, plot dummy data.
         lines2d = []
-        for wave_idx, wave_data in enumerate(dummy_datas):
-            wave_zeros = np.zeros_like(wave_data)
+        for wave_idx, wave_ys in enumerate(dummy_yss):
+            wave_zeros = np.zeros_like(wave_ys)
 
             wave_axes = self._axes2d[wave_idx]
             wave_lines = []
@@ -600,11 +600,11 @@ class AbstractMatplotlibRenderer(_RendererBackend, ABC):
             lines2d.append(wave_lines)
             self._artists.extend(wave_lines)
 
-        return lambda datas: self._update_lines_stereo(lines2d, datas)
+        return lambda yss: self._update_lines_stereo(lines2d, yss)
 
     @staticmethod
     def _update_lines_stereo(
-        lines2d: "List[List[Line2D]]", datas: List[np.ndarray]
+        lines2d: "List[List[Line2D]]", yss: List[np.ndarray]
     ) -> None:
         """
         Preconditions:
@@ -612,7 +612,7 @@ class AbstractMatplotlibRenderer(_RendererBackend, ABC):
         - datas[wave] = ndarray, [samp][chan] = FLOAT
         """
         nplots = len(lines2d)
-        ndata = len(datas)
+        ndata = len(yss)
         if nplots != ndata:
             raise ValueError(
                 f"incorrect data to plot: {nplots} plots but {ndata} dummy_datas"
@@ -620,13 +620,13 @@ class AbstractMatplotlibRenderer(_RendererBackend, ABC):
 
         # Draw waveform data
         # Foreach wave
-        for wave_idx, wave_data in enumerate(datas):
+        for wave_idx, wave_ys in enumerate(yss):
             wave_lines = lines2d[wave_idx]
 
             # Foreach chan
-            for chan_idx, chan_data in enumerate(wave_data.T):
+            for chan_idx, chan_ys in enumerate(wave_ys.T):
                 chan_line = wave_lines[chan_idx]
-                chan_line.set_ydata(chan_data)
+                chan_line.set_ydata(chan_ys)
 
     def _add_xy_line_mono(
         self, wave_idx: int, xs: Sequence[float], ys: Sequence[float], stride: int
@@ -801,11 +801,11 @@ class RendererFrontend(_RendererBackend, ABC):
     # New methods.
     _update_main_lines: Optional[UpdateLines]
 
-    def update_main_lines(self, datas: List[np.ndarray]) -> None:
+    def update_main_lines(self, yss: List[np.ndarray]) -> None:
         if self._update_main_lines is None:
-            self._update_main_lines = self.add_lines_stereo(datas, self.render_strides)
+            self._update_main_lines = self.add_lines_stereo(yss, self.render_strides)
 
-        self._update_main_lines(datas)
+        self._update_main_lines(yss)
 
     _offsetable: DefaultDict[int, MutableSequence[CustomLine]]
 
@@ -814,22 +814,22 @@ class RendererFrontend(_RendererBackend, ABC):
         name: str,
         wave_idx: int,
         stride: int,
-        data: np.ndarray,
+        ys: np.ndarray,
         *,
         offset: bool = True,
     ):
-        data = data.copy()
+        ys = ys.copy()
         key = (name, wave_idx)
 
         if key not in self._custom_lines:
-            line = self._add_line_mono(wave_idx, stride, data)
+            line = self._add_line_mono(wave_idx, stride, ys)
             self._custom_lines[key] = line
             if offset:
                 self._offsetable[wave_idx].append(line)
         else:
             line = self._custom_lines[key]
 
-        line.set_ydata(data)
+        line.set_ydata(ys)
 
     def update_vline(
         self, name: str, wave_idx: int, stride: int, x: int, *, offset: bool = True
@@ -853,9 +853,9 @@ class RendererFrontend(_RendererBackend, ABC):
             line.set_xdata(line.xdata + line_offset * line.stride)
 
     def _add_line_mono(
-        self, wave_idx: int, stride: int, dummy_data: np.ndarray
+        self, wave_idx: int, stride: int, dummy_ys: np.ndarray
     ) -> CustomLine:
-        ys = np.zeros_like(dummy_data)
+        ys = np.zeros_like(dummy_ys)
         xs = calc_xs(len(ys), stride)
         return self._add_xy_line_mono(wave_idx, xs, ys, stride)
 
