@@ -322,7 +322,7 @@ class _RendererBackend(ABC):
     # Primarily used by RendererFrontend, not outside world.
     @abstractmethod
     def _add_xy_line_mono(
-        self, wave_idx: int, xs: Sequence[float], ys: Sequence[float], stride: int
+        self, wave_idx: int, stride: int, xs: Sequence[float], ys: Sequence[float]
     ) -> CustomLine:
         ...
 
@@ -629,7 +629,7 @@ class AbstractMatplotlibRenderer(_RendererBackend, ABC):
                 chan_line.set_ydata(chan_ys)
 
     def _add_xy_line_mono(
-        self, wave_idx: int, xs: Sequence[float], ys: Sequence[float], stride: int
+        self, wave_idx: int, stride: int, xs: Sequence[float], ys: Sequence[float]
     ) -> CustomLine:
         cfg = self.cfg
 
@@ -857,10 +857,10 @@ class RendererFrontend(_RendererBackend, ABC):
     ) -> CustomLine:
         ys = np.zeros_like(dummy_ys)
         xs = calc_xs(len(ys), stride)
-        return self._add_xy_line_mono(wave_idx, xs, ys, stride)
+        return self._add_xy_line_mono(wave_idx, stride, xs, ys)
 
     def _add_vline_mono(self, wave_idx: int, stride: int) -> CustomLine:
-        return self._add_xy_line_mono(wave_idx, [0, 0], [-1, 1], stride)
+        return self._add_xy_line_mono(wave_idx, stride, [0, 0], [-1, 1])
 
 
 class Renderer(RendererFrontend, MatplotlibAggRenderer):
