@@ -1,5 +1,7 @@
 # Corrscope
 
+corrscope has moved! Visit https://github.com/nyanpasu64/corrscope for future updates to this program.
+
 [![Appveyor build status](https://ci.appveyor.com/api/projects/status/awiajnwd6a4uhu37/branch/master?svg=true)](https://ci.appveyor.com/project/jimbo1qaz/ovgenpy/branch/master)
 [![Latest release](https://img.shields.io/github/release-pre/jimbo1qaz/corrscope.svg)](https://github.com/jimbo1qaz/corrscope/releases)
 ![PyPI release](https://img.shields.io/pypi/v/corrscope.svg)
